@@ -14,6 +14,7 @@ def getconfig():
         logtable = config['loginfo']['logtable']
         actiontable = config['loginfo']['actiontable']
         awsregion = config['loginfo']['awsregion']
+        badiptable = config['loginfo']['badiptable']
     except KeyError as e:
         print("No config file, so pulling info from my user's AWS tags.")
         iam = boto3.resource("iam")
@@ -26,14 +27,17 @@ def getconfig():
                 logtable = tag['Value']
             if tag['Key'] == 'ActionTable':
                 actiontable = tag['Value']
+            if tag['Key'] == 'BadIPTable':
+                badiptable = tag['Value']
 
     configobj = {}
     configobj["logtable"] = logtable
     configobj["awsregion"] = awsregion
     configobj["actiontable"] = actiontable
+    configobj["badiptable"] = badiptable
     return configobj
 
-def getlogdict(msg, logtable, actiontable, awsregion):
+def getlogdict(msg, logtable, actiontable, badiptable, awsregion):
     if msg.is_multipart():
         payload = msg.get_payload()
     contenttype = msg.get_content_disposition()
@@ -87,9 +91,32 @@ def getlogdict(msg, logtable, actiontable, awsregion):
                             actiondict["count"] = 1
                     else:
                         actiondict["count"] = 1
+                badipdict = {}
+
+                if "srcip" in logdict or "remip" in logdict:
+                    if "srcip" in logdict:
+                        fortilogid = logdict["devname"] + "_" + logdict["srcip"]
+                        badipdict["srcip"] = logdict["srcip"]
+                    else:
+                        fortilogid = logdict["devname"] + "_" + logdict["remip"]
+                        badipdict["srcip"] = logdict["remip"]
+                    badipdict["FortiLogID"] = fortilogid
+                    try:
+                        response = table.get_item(Key={'FortiLogID': fortilogid}, TableName=badiptable)
+                    except ClientError as e:
+                        print(e.response['Error']['Message'])
+                        print("No Item exists, yet")
+                    else:
+                        if "Item" in response:
+                            item = response["Item"]
+                            badipdict["count"] = item["count"] + 1
+                            print(item)
+                        else:
+                            badipdict["count"] = 1
 
                 table.put_item(TableName=logtable, Item=logdict)
                 table.put_item(TableName=actiontable, Item=actiondict)
+                table.put_item(TableName=badiptable, Item=badipdict)
 
                 print(logdict)
                 return logdict
@@ -106,7 +133,7 @@ def main(key):
     streaming_object = objectdata["Body"]
     data = streaming_object.read().decode('utf-8')
     msg = email.message_from_string(data)
-    logdict = getlogdict(msg,configobj["logtable"], configobj["actiontable"], configobj["awsregion"])
+    logdict = getlogdict(msg,configobj["logtable"], configobj["actiontable"], configobj["badiptable"], configobj["awsregion"])
     s3.put_object(Body=data, Bucket=bucketname, Key=f'{key.replace("incoming", "processed")}')
     s3.delete_object(Bucket=bucketname, Key=key)
 
