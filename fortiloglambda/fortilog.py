@@ -4,6 +4,9 @@ import os
 import boto3
 import email
 
+from botocore.exceptions import ClientError
+
+
 def getconfig():
     config = configparser.ConfigParser()
     config.read('fwloglambda.cfg')
@@ -67,8 +70,24 @@ def getlogdict(msg, logtable, actiontable, awsregion):
                     fortilogid += logdict["status"]
                 actiondict["FortiLogID"] = fortilogid
                 actiondict["action"] = logdict["action"]
+
                 if "status" in logdict:
                     actiondict["status"] = logdict["status"]
+                try:
+                    response = table.get_item(Key={'FortiLogID': fortilogid}, TableName="FortiLogsActions")
+                except ClientError as e:
+                    print(e.response['Error']['Message'])
+                    print("No Item exists, yet")
+                else:
+                    if "Item" in response:
+                        item = response['Item']
+                        if "count" in item:
+                            actiondict["count"] = item["count"] + 1
+                        else:
+                            actiondict["count"] = 1
+                    else:
+                        actiondict["count"] = 1
+
                 table.put_item(TableName=logtable, Item=logdict)
                 table.put_item(TableName=actiontable, Item=actiondict)
 
