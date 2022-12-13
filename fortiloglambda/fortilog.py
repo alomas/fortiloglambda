@@ -116,7 +116,10 @@ def getlogdict(msg, logtable, actiontable, badiptable, awsregion):
 
                 table.put_item(TableName=logtable, Item=logdict)
                 table.put_item(TableName=actiontable, Item=actiondict)
-                table.put_item(TableName=badiptable, Item=badipdict)
+                if not badipdict=={}:
+                    if "status" in logdict:
+                        if logdict["status"] == "failure" or logdict["status"] == "failed" or logdict["action"] == "ssl-login-fail":
+                            table.put_item(TableName=badiptable, Item=badipdict)
 
                 print(logdict)
                 return logdict
