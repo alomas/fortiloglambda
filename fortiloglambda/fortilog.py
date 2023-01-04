@@ -1,6 +1,8 @@
 import json
 import configparser
 import os
+import time
+
 import boto3
 import email
 
@@ -113,7 +115,10 @@ def getlogdict(msg, logtable, actiontable, badiptable, awsregion):
                             print(item)
                         else:
                             badipdict["count"] = 1
+                t_epoch = time.time()
+                expiretime = int(t_epoch) + 630077
 
+                logdict["exptime"]=expiretime
                 table.put_item(TableName=logtable, Item=logdict)
                 table.put_item(TableName=actiontable, Item=actiondict)
                 if not badipdict=={}:
