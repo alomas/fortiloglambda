@@ -116,7 +116,7 @@ def getlogdict(msg, logtable, actiontable, badiptable, awsregion):
                         else:
                             badipdict["count"] = 1
                 t_epoch = time.time()
-                expiretime = int(t_epoch) + 630077
+                expiretime = int(t_epoch) + 518400
 
                 logdict["exptime"]=expiretime
                 table.put_item(TableName=logtable, Item=logdict)
